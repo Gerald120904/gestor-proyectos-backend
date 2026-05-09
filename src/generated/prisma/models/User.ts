@@ -1163,10 +1163,6 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     pendingEmail: string | null
     pendingEmailCodeHash: string | null
     pendingEmailExpiresAt: Date | null
-    /**
-     * *
-     *    * kept for backward compatibility if present
-     */
     emailVerificationCodeHash: string | null
     emailVerificationExpiresAt: Date | null
     passwordResetCodeHash: string | null

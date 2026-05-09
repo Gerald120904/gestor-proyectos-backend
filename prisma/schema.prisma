@@ -36,9 +36,9 @@ enum PrioridadRecordatorio {
 }
 
 model User {
-  id       Int     @id @default(autoincrement())
+  id       Int    @id @default(autoincrement())
   nombre   String
-  email    String  @unique
+  email    String @unique
   password String
 
   telefono         String? @unique
@@ -59,9 +59,6 @@ model User {
   pendingEmailCodeHash  String?
   pendingEmailExpiresAt DateTime?
 
-  /**
-   * kept for backward compatibility if present
-   */
   emailVerificationCodeHash  String?
   emailVerificationExpiresAt DateTime?
   passwordResetCodeHash      String?
@@ -71,14 +68,18 @@ model User {
   updatedAt DateTime @updatedAt
 
   clientes Cliente[]
+
+  @@map("users")
 }
 
 model FcmToken {
-  id        Int      @id @default(autoincrement())
-  token     String   @unique
-  platform  String?
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  id       Int     @id @default(autoincrement())
+  token    String  @unique
+  platform String?
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -86,11 +87,12 @@ model FcmToken {
 }
 
 model Cliente {
-  id        Int      @id @default(autoincrement())
+  id        Int    @id @default(autoincrement())
   nombre    String
   telefono  String
   correo    String
   direccion String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -98,6 +100,8 @@ model Cliente {
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   proyectos Proyecto[]
+
+  @@map("clientes")
 }
 
 model Proyecto {
@@ -106,8 +110,9 @@ model Proyecto {
   descripcion String
   montoTotal  Decimal        @db.Decimal(10, 2)
   estado      EstadoProyecto @default(PENDIENTE)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   clienteId Int
   cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
@@ -116,18 +121,23 @@ model Proyecto {
   visitas       Visita[]
   comentarios   Comentario[]
   recordatorios Recordatorio[]
+
+  @@map("proyectos")
 }
 
 model Pago {
-  id          Int      @id @default(autoincrement())
-  monto       Decimal  @db.Decimal(10, 2)
+  id          Int        @id @default(autoincrement())
+  monto       Decimal    @db.Decimal(10, 2)
   fecha       DateTime
   metodo      MetodoPago
   observacion String?
-  createdAt   DateTime @default(now())
+
+  createdAt DateTime @default(now())
 
   proyectoId Int
   proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@map("pagos")
 }
 
 model Visita {
@@ -137,11 +147,14 @@ model Visita {
   direccion   String
   estado      EstadoVisita @default(PROGRAMADA)
   observacion String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   proyectoId Int
   proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@map("visitas")
 }
 
 model Comentario {
@@ -149,11 +162,14 @@ model Comentario {
   titulo    String
   contenido String
   fecha     DateTime
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   proyectoId Int
   proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@map("comentarios")
 }
 
 model Recordatorio {
@@ -176,4 +192,6 @@ model Recordatorio {
 
   proyectoId Int
   proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@map("recordatorios")
 }
