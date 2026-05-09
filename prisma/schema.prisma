@@ -1,0 +1,179 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum EstadoProyecto {
+  PENDIENTE
+  ACTIVO
+  FINALIZADO
+  PAUSADO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  SINPE_MOVIL
+  TARJETA
+  OTRO
+}
+
+enum EstadoVisita {
+  PROGRAMADA
+  REALIZADA
+  CANCELADA
+}
+
+enum PrioridadRecordatorio {
+  ALTA
+  MEDIA
+  BAJA
+}
+
+model User {
+  id       Int     @id @default(autoincrement())
+  nombre   String
+  email    String  @unique
+  password String
+
+  telefono         String? @unique
+  phoneCountryIso2 String?
+  phoneDialCode    String?
+  phoneVerified    Boolean @default(false)
+  firebasePhoneUid String?
+
+  emailVerified Boolean @default(false)
+
+  fcmTokens FcmToken[]
+
+  pendingPhone          String?
+  pendingPhoneCodeHash  String?
+  pendingPhoneExpiresAt DateTime?
+
+  pendingEmail          String?
+  pendingEmailCodeHash  String?
+  pendingEmailExpiresAt DateTime?
+
+  /**
+   * kept for backward compatibility if present
+   */
+  emailVerificationCodeHash  String?
+  emailVerificationExpiresAt DateTime?
+  passwordResetCodeHash      String?
+  passwordResetExpiresAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clientes Cliente[]
+}
+
+model FcmToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  platform  String?
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("fcm_tokens")
+}
+
+model Cliente {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  telefono  String
+  correo    String
+  direccion String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  proyectos Proyecto[]
+}
+
+model Proyecto {
+  id          Int            @id @default(autoincrement())
+  nombre      String
+  descripcion String
+  montoTotal  Decimal        @db.Decimal(10, 2)
+  estado      EstadoProyecto @default(PENDIENTE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  clienteId Int
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  pagos         Pago[]
+  visitas       Visita[]
+  comentarios   Comentario[]
+  recordatorios Recordatorio[]
+}
+
+model Pago {
+  id          Int      @id @default(autoincrement())
+  monto       Decimal  @db.Decimal(10, 2)
+  fecha       DateTime
+  metodo      MetodoPago
+  observacion String?
+  createdAt   DateTime @default(now())
+
+  proyectoId Int
+  proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+}
+
+model Visita {
+  id          Int          @id @default(autoincrement())
+  fecha       DateTime
+  hora        String
+  direccion   String
+  estado      EstadoVisita @default(PROGRAMADA)
+  observacion String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  proyectoId Int
+  proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+}
+
+model Comentario {
+  id        Int      @id @default(autoincrement())
+  titulo    String
+  contenido String
+  fecha     DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proyectoId Int
+  proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+}
+
+model Recordatorio {
+  id          Int                   @id @default(autoincrement())
+  titulo      String
+  descripcion String
+  fecha       DateTime
+  hora        String
+  prioridad   PrioridadRecordatorio @default(MEDIA)
+  completado  Boolean               @default(false)
+
+  notificacionEnviada   Boolean   @default(false)
+  notificacionEnviadaAt DateTime?
+
+  notificacionMananaEnviada   Boolean   @default(false)
+  notificacionMananaEnviadaAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proyectoId Int
+  proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+}
