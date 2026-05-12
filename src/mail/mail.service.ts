@@ -1,17 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 @Injectable()
 export class MailService {
   private transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT || 587),
     secure: process.env.SMTP_SECURE === 'true',
+
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-  });
+
+    requireTLS: true,
+
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
+
+    tls: {
+      minVersion: 'TLSv1.2',
+      servername: process.env.SMTP_HOST || 'smtp.gmail.com',
+    },
+  } as SMTPTransport.Options);
 
   private getFrom() {
     const fromName = process.env.MAIL_FROM_NAME || 'Gestor de Proyectos';
