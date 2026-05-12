@@ -515,10 +515,10 @@ export class AuthService {
       },
     });
 
-    await this.sendCodeToEmail(newEmail, code);
+    await this.sendCodeToEmail(user.email, code);
 
     return {
-      message: 'Se envió un código de confirmación al nuevo correo.',
+      message: 'Se envió un código de confirmación al correo actual de la cuenta.',
     };
   }
 
