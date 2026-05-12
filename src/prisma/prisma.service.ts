@@ -18,7 +18,14 @@ function createMariaDbAdapter() {
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     database: url.pathname.replace('/', ''),
-    connectionLimit: 5,
+
+    connectionLimit: 3,
+    connectTimeout: 30000,
+    socketTimeout: 30000,
+
+    ssl: {
+      rejectUnauthorized: false,
+    },
   });
 }
 
