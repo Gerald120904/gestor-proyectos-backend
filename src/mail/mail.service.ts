@@ -1,36 +1,24 @@
-import { Injectable } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
-
+import { Injectable, Logger } from '@nestjs/common';
+import { fetch } from 'undici';
 @Injectable()
 export class MailService {
-  private transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === 'true',
+  private readonly logger = new Logger(MailService.name);
 
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+  private getApiKey() {
+    const apiKey = process.env.BREVO_API_KEY;
 
-    requireTLS: true,
+    if (!apiKey) {
+      throw new Error('BREVO_API_KEY no está configurado');
+    }
 
-    connectionTimeout: 30000,
-    greetingTimeout: 30000,
-    socketTimeout: 30000,
+    return apiKey;
+  }
 
-    tls: {
-      minVersion: 'TLSv1.2',
-      servername: process.env.SMTP_HOST || 'smtp.gmail.com',
-    },
-  } as SMTPTransport.Options);
-
-  private getFrom() {
-    const fromName = process.env.MAIL_FROM_NAME || 'Gestor de Proyectos';
-    const fromEmail = process.env.MAIL_FROM_EMAIL || process.env.SMTP_USER;
-
-    return `"${fromName}" <${fromEmail}>`;
+  private getSender() {
+    return {
+      name: process.env.MAIL_FROM_NAME || 'Gestor de Proyectos',
+      email: process.env.MAIL_FROM_EMAIL || 'aplicacionflutter@gmail.com',
+    };
   }
 
   private escapeHtml(value: string) {
@@ -71,7 +59,6 @@ export class MailService {
     <tr>
       <td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px; background:#ffffff; border-radius:22px; overflow:hidden; box-shadow:0 18px 45px rgba(15,23,42,0.12);">
-          
           <tr>
             <td style="background:linear-gradient(135deg,#0f766e,#2563eb); padding:34px 30px; text-align:center;">
               <div style="display:inline-block; background:rgba(255,255,255,0.16); color:#ffffff; font-size:13px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; padding:8px 16px; border-radius:999px; margin-bottom:18px;">
@@ -148,7 +135,6 @@ export class MailService {
               </p>
             </td>
           </tr>
-
         </table>
 
         <p style="margin:18px 0 0; color:#94a3b8; font-size:12px; text-align:center;">
@@ -162,9 +148,39 @@ export class MailService {
     `;
   }
 
+  private async sendCodeEmail(params: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+  }) {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'api-key': this.getApiKey(),
+      },
+      body: JSON.stringify({
+        sender: this.getSender(),
+        to: [{ email: params.to }],
+        subject: params.subject,
+        htmlContent: params.html,
+        textContent: params.text,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      this.logger.error(`Brevo no pudo enviar el correo: ${errorText}`);
+
+      throw new Error('No se pudo enviar el correo de verificación.');
+    }
+  }
+
   async sendVerificationCode(email: string, code: string) {
-    await this.transporter.sendMail({
-      from: this.getFrom(),
+    await this.sendCodeEmail({
       to: email,
       subject: 'Código de verificación - Gestor de Proyectos',
       text: `Tu código de verificación es: ${code}. Este código vence pronto.`,
@@ -182,8 +198,7 @@ export class MailService {
   }
 
   async sendPasswordResetCode(email: string, code: string) {
-    await this.transporter.sendMail({
-      from: this.getFrom(),
+    await this.sendCodeEmail({
       to: email,
       subject: 'Código para recuperar contraseña - Gestor de Proyectos',
       text: `Tu código para recuperar la contraseña es: ${code}. Este código vence pronto.`,
@@ -201,8 +216,7 @@ export class MailService {
   }
 
   async sendEmailChangeCode(to: string, code: string) {
-    await this.transporter.sendMail({
-      from: this.getFrom(),
+    await this.sendCodeEmail({
       to,
       subject: 'Código para cambiar correo - Gestor de Proyectos',
       text: `Tu código para cambiar el correo es: ${code}. Este código expira en 10 minutos.`,
@@ -222,8 +236,7 @@ export class MailService {
   async sendPhoneChangeCode(to: string, phone: string, code: string) {
     const safePhone = this.escapeHtml(phone);
 
-    await this.transporter.sendMail({
-      from: this.getFrom(),
+    await this.sendCodeEmail({
       to,
       subject: 'Código para cambiar teléfono - Gestor de Proyectos',
       text: `Se solicitó cambiar el teléfono de la cuenta a ${phone}. Tu código es: ${code}. Este código expira en 10 minutos.`,
