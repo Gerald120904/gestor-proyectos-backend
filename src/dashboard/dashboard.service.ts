@@ -60,8 +60,17 @@ export class DashboardService {
       // 7. Proyectos agrupados por estado
       this.prisma.proyecto.groupBy({
         by: ['estado'],
-        where: { cliente: { userId } },
-        _count: { estado: true },
+        where: {
+          cliente: {
+            userId,
+          },
+        },
+        orderBy: {
+          estado: 'asc',
+        },
+        _count: {
+          _all: true,
+        },
       }),
 
       // 8. Últimos 5 proyectos (solo campos necesarios)
@@ -90,7 +99,10 @@ export class DashboardService {
     for (const grupo of estadosResult) {
       const key = grupo.estado.toLowerCase() as keyof typeof proyectosPorEstado;
       if (key in proyectosPorEstado) {
-        proyectosPorEstado[key] = grupo._count.estado;
+        proyectosPorEstado[key] =
+          typeof grupo._count === 'object' && grupo._count
+            ? (grupo._count._all ?? 0)
+            : 0;
       }
     }
 
