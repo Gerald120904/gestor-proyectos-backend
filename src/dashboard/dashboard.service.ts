@@ -6,7 +6,7 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getResumen(userId: number) {
-    // Todas las queries corren EN PARALELO en la base de datos
+    // Promise.all en vez de $transaction — soporta groupBy y sigue siendo paralelo
     const [
       totalClientes,
       totalProyectos,
@@ -16,31 +16,26 @@ export class DashboardService {
       recordatoriosPendientes,
       estadosResult,
       ultimosProyectos,
-    ] = await this.prisma.$transaction([
+    ] = await Promise.all([
 
-      // 1. Contar clientes
       this.prisma.cliente.count({
         where: { userId },
       }),
 
-      // 2. Contar proyectos
       this.prisma.proyecto.count({
         where: { cliente: { userId } },
       }),
 
-      // 3. Suma total de proyectos (en la BD, no en JS)
       this.prisma.proyecto.aggregate({
         where: { cliente: { userId } },
         _sum: { montoTotal: true },
       }),
 
-      // 4. Suma de pagos realizados
       this.prisma.pago.aggregate({
         where: { proyecto: { cliente: { userId } } },
         _sum: { monto: true },
       }),
 
-      // 5. Visitas próximas (filtro en la BD)
       this.prisma.visita.count({
         where: {
           proyecto: { cliente: { userId } },
@@ -49,7 +44,6 @@ export class DashboardService {
         },
       }),
 
-      // 6. Recordatorios pendientes
       this.prisma.recordatorio.count({
         where: {
           proyecto: { cliente: { userId } },
@@ -57,23 +51,12 @@ export class DashboardService {
         },
       }),
 
-      // 7. Proyectos agrupados por estado
       this.prisma.proyecto.groupBy({
         by: ['estado'],
-        where: {
-          cliente: {
-            userId,
-          },
-        },
-        orderBy: {
-          estado: 'asc',
-        },
-        _count: {
-          _all: true,
-        },
+        where: { cliente: { userId } },
+        _count: { estado: true },
       }),
 
-      // 8. Últimos 5 proyectos (solo campos necesarios)
       this.prisma.proyecto.findMany({
         where: { cliente: { userId } },
         orderBy: { createdAt: 'desc' },
@@ -84,14 +67,11 @@ export class DashboardService {
           estado: true,
           montoTotal: true,
           createdAt: true,
-          pagos: {
-            select: { monto: true },
-          },
+          pagos: { select: { monto: true } },
         },
       }),
     ]);
 
-    // Cálculos mínimos en JS (solo los que no puede hacer Prisma)
     const montoTotalProyectos = Number(montoTotalResult._sum.montoTotal ?? 0);
     const montoPagado = Number(montoPagadoResult._sum.monto ?? 0);
 
@@ -99,10 +79,7 @@ export class DashboardService {
     for (const grupo of estadosResult) {
       const key = grupo.estado.toLowerCase() as keyof typeof proyectosPorEstado;
       if (key in proyectosPorEstado) {
-        proyectosPorEstado[key] =
-          typeof grupo._count === 'object' && grupo._count
-            ? (grupo._count._all ?? 0)
-            : 0;
+        proyectosPorEstado[key] = grupo._count.estado;
       }
     }
 
