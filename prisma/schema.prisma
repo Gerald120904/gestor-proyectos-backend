@@ -101,6 +101,7 @@ model Cliente {
 
   proyectos Proyecto[]
 
+  @@index([userId])
   @@map("clientes")
 }
 
@@ -122,6 +123,10 @@ model Proyecto {
   comentarios   Comentario[]
   recordatorios Recordatorio[]
 
+  @@index([clienteId])
+  @@index([estado])
+  @@index([clienteId, estado])
+  @@index([createdAt])
   @@map("proyectos")
 }
 
@@ -137,6 +142,7 @@ model Pago {
   proyectoId Int
   proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
 
+  @@index([proyectoId])
   @@map("pagos")
 }
 
@@ -154,6 +160,8 @@ model Visita {
   proyectoId Int
   proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
 
+  @@index([proyectoId])
+  @@index([fecha, estado])
   @@map("visitas")
 }
 
@@ -169,6 +177,7 @@ model Comentario {
   proyectoId Int
   proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
 
+  @@index([proyectoId])
   @@map("comentarios")
 }
 
@@ -193,5 +202,9 @@ model Recordatorio {
   proyectoId Int
   proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
 
+  @@index([proyectoId])
+  @@index([completado])
+  @@index([proyectoId, completado])
+  @@index([fecha])
   @@map("recordatorios")
 }
