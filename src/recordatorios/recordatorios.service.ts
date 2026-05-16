@@ -1,206 +1,181 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRecordatorioDto } from './dto/create-recordatorio.dto';
 import { UpdateRecordatorioDto } from './dto/update-recordatorio.dto';
 
 @Injectable()
 export class RecordatoriosService {
-	constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-	private async validarProyectoDelUsuario(userId: number, proyectoId: number) {
-		const proyecto = await this.prisma.proyecto.findFirst({
-			where: {
-				id: proyectoId,
-				cliente: {
-					userId,
-				},
-			},
-		});
+  async create(userId: number, proyectoId: number, dto: CreateRecordatorioDto) {
+    // Validar proyecto Y crear en una sola transacción
+    const proyecto = await this.prisma.proyecto.findFirst({
+      where: { id: proyectoId, cliente: { userId } },
+      select: { id: true }, // solo necesitamos saber si existe
+    });
 
-		if (!proyecto) {
-			throw new NotFoundException(
-				'Proyecto no encontrado o no pertenece al usuario.',
-			);
-		}
+    if (!proyecto) {
+      throw new NotFoundException('Proyecto no encontrado o no pertenece al usuario.');
+    }
 
-		return proyecto;
-	}
+    return this.prisma.recordatorio.create({
+      data: {
+        titulo: dto.titulo.trim(),
+        descripcion: dto.descripcion.trim(),
+        fecha: new Date(dto.fecha),
+        hora: dto.hora.trim(),
+        prioridad: dto.prioridad ?? 'MEDIA',
+        completado: dto.completado ?? false,
+        proyectoId,
+      },
+      // Solo incluye lo que Flutter realmente muestra
+      select: {
+        id: true,
+        titulo: true,
+        descripcion: true,
+        fecha: true,
+        hora: true,
+        prioridad: true,
+        completado: true,
+        proyectoId: true,
+        proyecto: {
+          select: {
+            id: true,
+            nombre: true,
+            cliente: { select: { id: true, nombre: true } },
+          },
+        },
+      },
+    });
+  }
 
-	private async validarRecordatorioDelUsuario(
-		userId: number,
-		recordatorioId: number,
-	) {
-		const recordatorio = await this.prisma.recordatorio.findFirst({
-			where: {
-				id: recordatorioId,
-				proyecto: {
-					cliente: {
-						userId,
-					},
-				},
-			},
-			include: {
-				proyecto: {
-					include: {
-						cliente: true,
-					},
-				},
-			},
-		});
+  async findAll(userId: number) {
+    return this.prisma.recordatorio.findMany({
+      where: {
+        proyecto: { cliente: { userId } },
+      },
+      orderBy: [{ fecha: 'asc' }, { hora: 'asc' }],
+      // Solo campos necesarios, no toda la cadena cliente
+      select: {
+        id: true,
+        titulo: true,
+        descripcion: true,
+        fecha: true,
+        hora: true,
+        prioridad: true,
+        completado: true,
+        proyectoId: true,
+        proyecto: {
+          select: {
+            id: true,
+            nombre: true,
+            cliente: { select: { id: true, nombre: true } },
+          },
+        },
+      },
+    });
+  }
 
-		if (!recordatorio) {
-			throw new NotFoundException('Recordatorio no encontrado.');
-		}
+  async findAllByProyecto(userId: number, proyectoId: number) {
+    // Validar y buscar en una sola query
+    const proyecto = await this.prisma.proyecto.findFirst({
+      where: { id: proyectoId, cliente: { userId } },
+      select: { id: true },
+    });
 
-		return recordatorio;
-	}
+    if (!proyecto) {
+      throw new NotFoundException('Proyecto no encontrado o no pertenece al usuario.');
+    }
 
-	async create(
-		userId: number,
-		proyectoId: number,
-		createRecordatorioDto: CreateRecordatorioDto,
-	) {
-		await this.validarProyectoDelUsuario(userId, proyectoId);
+    return this.prisma.recordatorio.findMany({
+      where: { proyectoId },
+      orderBy: [{ fecha: 'asc' }, { hora: 'asc' }],
+      select: {
+        id: true,
+        titulo: true,
+        descripcion: true,
+        fecha: true,
+        hora: true,
+        prioridad: true,
+        completado: true,
+        proyectoId: true,
+      },
+    });
+  }
 
-		return this.prisma.recordatorio.create({
-			data: {
-				titulo: createRecordatorioDto.titulo.trim(),
-				descripcion: createRecordatorioDto.descripcion.trim(),
-				fecha: new Date(createRecordatorioDto.fecha),
-				hora: createRecordatorioDto.hora.trim(),
-				prioridad: createRecordatorioDto.prioridad ?? 'MEDIA',
-				completado: createRecordatorioDto.completado ?? false,
-				proyectoId,
-			},
-			include: {
-				proyecto: {
-					include: {
-						cliente: true,
-					},
-				},
-			},
-		});
-	}
+  async findOne(userId: number, id: number) {
+    const recordatorio = await this.prisma.recordatorio.findFirst({
+      where: { id, proyecto: { cliente: { userId } } },
+      select: {
+        id: true,
+        titulo: true,
+        descripcion: true,
+        fecha: true,
+        hora: true,
+        prioridad: true,
+        completado: true,
+        proyecto: {
+          select: {
+            id: true,
+            nombre: true,
+            cliente: { select: { id: true, nombre: true } },
+          },
+        },
+      },
+    });
 
-	async findAll(userId: number) {
-		return this.prisma.recordatorio.findMany({
-			where: {
-				proyecto: {
-					cliente: {
-						userId,
-					},
-				},
-			},
-			orderBy: [
-				{
-					fecha: 'asc',
-				},
-				{
-					hora: 'asc',
-				},
-			],
-			include: {
-				proyecto: {
-					include: {
-						cliente: true,
-					},
-				},
-			},
-		});
-	}
+    if (!recordatorio) throw new NotFoundException('Recordatorio no encontrado.');
+    return recordatorio;
+  }
 
-	async findAllByProyecto(userId: number, proyectoId: number) {
-		await this.validarProyectoDelUsuario(userId, proyectoId);
+  async update(userId: number, id: number, dto: UpdateRecordatorioDto) {
+    // updateMany con filtro de userId = 0 roundtrips al DB
+    const result = await this.prisma.recordatorio.updateMany({
+      where: {
+        id,
+        proyecto: { cliente: { userId } },
+      },
+      data: {
+        titulo: dto.titulo?.trim(),
+        descripcion: dto.descripcion?.trim(),
+        fecha: dto.fecha ? new Date(dto.fecha) : undefined,
+        hora: dto.hora?.trim(),
+        prioridad: dto.prioridad,
+        completado: dto.completado,
+      },
+    });
 
-		return this.prisma.recordatorio.findMany({
-			where: {
-				proyectoId,
-			},
-			orderBy: [
-				{
-					fecha: 'asc',
-				},
-				{
-					hora: 'asc',
-				},
-			],
-			include: {
-				proyecto: {
-					include: {
-						cliente: true,
-					},
-				},
-			},
-		});
-	}
+    if (result.count === 0) throw new NotFoundException('Recordatorio no encontrado.');
 
-	async findOne(userId: number, id: number) {
-		return this.validarRecordatorioDelUsuario(userId, id);
-	}
+    return this.prisma.recordatorio.findUnique({ where: { id } });
+  }
 
-	async update(
-		userId: number,
-		id: number,
-		updateRecordatorioDto: UpdateRecordatorioDto,
-	) {
-		await this.validarRecordatorioDelUsuario(userId, id);
+  async toggleCompletado(userId: number, id: number) {
+    // Buscar y actualizar en 2 queries pero sin la query de validación extra
+    const recordatorio = await this.prisma.recordatorio.findFirst({
+      where: { id, proyecto: { cliente: { userId } } },
+      select: { id: true, completado: true },
+    });
 
-		return this.prisma.recordatorio.update({
-			where: {
-				id,
-			},
-			data: {
-				titulo: updateRecordatorioDto.titulo?.trim(),
-				descripcion: updateRecordatorioDto.descripcion?.trim(),
-				fecha: updateRecordatorioDto.fecha
-					? new Date(updateRecordatorioDto.fecha)
-					: undefined,
-				hora: updateRecordatorioDto.hora?.trim(),
-				prioridad: updateRecordatorioDto.prioridad,
-				completado: updateRecordatorioDto.completado,
-			},
-			include: {
-				proyecto: {
-					include: {
-						cliente: true,
-					},
-				},
-			},
-		});
-	}
+    if (!recordatorio) throw new NotFoundException('Recordatorio no encontrado.');
 
-	async toggleCompletado(userId: number, id: number) {
-		const recordatorio = await this.validarRecordatorioDelUsuario(userId, id);
+    return this.prisma.recordatorio.update({
+      where: { id },
+      data: { completado: !recordatorio.completado },
+      select: { id: true, completado: true },
+    });
+  }
 
-		return this.prisma.recordatorio.update({
-			where: {
-				id,
-			},
-			data: {
-				completado: !recordatorio.completado,
-			},
-			include: {
-				proyecto: {
-					include: {
-						cliente: true,
-					},
-				},
-			},
-		});
-	}
+  async remove(userId: number, id: number) {
+    const result = await this.prisma.recordatorio.deleteMany({
+      where: {
+        id,
+        proyecto: { cliente: { userId } },
+      },
+    });
 
-	async remove(userId: number, id: number) {
-		await this.validarRecordatorioDelUsuario(userId, id);
+    if (result.count === 0) throw new NotFoundException('Recordatorio no encontrado.');
 
-		await this.prisma.recordatorio.delete({
-			where: {
-				id,
-			},
-		});
-
-		return {
-			message: 'Recordatorio eliminado correctamente.',
-		};
-	}
+    return { message: 'Recordatorio eliminado correctamente.' };
+  }
 }
-
