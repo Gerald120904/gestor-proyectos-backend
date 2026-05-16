@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -268,6 +267,17 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        password: true,
+        telefono: true,
+        emailVerified: true,
+        phoneVerified: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     if (!user) {
